@@ -72,7 +72,7 @@ def guardar_datos_db():
         st.error(f"Error al guardar en la base de datos: {e}")
 
 # --- CLAVE SECRETA DE ACCESO ---
-CLAVE_SECRETA = "fulcar2026"
+CLAVE_SECRETA = "Fulcar0131"
 
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
