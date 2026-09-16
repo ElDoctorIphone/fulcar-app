@@ -72,7 +72,7 @@ def guardar_datos_db():
         st.error(f"Error al guardar en la base de datos: {e}")
 
 # --- CLAVE SECRETA DE ACCESO ---
-CLAVE_SECRETA = "Fulcar0131"
+CLAVE_SECRETA = "fulcar2026"
 
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
@@ -761,6 +761,8 @@ elif pestana == "🤝 Vehículos de Colegas":
             st.rerun()
 
     st.markdown("---")
+    st.markdown("### Listado de Vehículos de Colegas")
+
     if st.session_state.colegas:
         for idx, c in enumerate(st.session_state.colegas):
             if c.get("moneda_original") == "Dólares (USD)":
@@ -771,16 +773,66 @@ elif pestana == "🤝 Vehículos de Colegas":
             else:
                 detalle_precio = f"RD$ {c['precio']:,.2f}"
 
-            with st.expander(f"🤝 {c['nombre']} ({c['dueno']}) — **{c['estado']}** | {detalle_precio}"):
+            with st.expander(f"🤝 {c['nombre']} ({c['dueno']}) — Estatus: **{c['estado']}** | {detalle_precio}"):
+                st.markdown(f"**Vehículo:** {c['nombre']}")
+                st.markdown(f"**Dueño / Colega:** {c['dueno']}")
+                st.markdown(f"**Precio Registrado:** {detalle_precio}")
+                st.markdown(f"**Estatus Actual:** {c['estado']}")
+
+                st.markdown("---")
+                st.markdown("##### ⚙️ Actualizar Precio o Estatus")
+
+                with st.form(f"form_edit_colega_{idx}"):
+                    edit_moneda = st.radio("Moneda", ["Pesos (RD$)", "Dólares (USD)"], index=0 if c.get("moneda_original", "Pesos (RD$)") == "Pesos (RD$)" else 1, horizontal=True, key=f"edit_c_mon_{idx}")
+                    edit_precio_str = st.text_input("Nuevo Precio / Acuerdo", value=f"{c['precio_original']:,.0f}", key=f"edit_c_precio_{idx}")
+                    
+                    edit_tasa_str = ""
+                    if edit_moneda == "Dólares (USD)":
+                        edit_tasa_str = st.text_input("Tasa del Dólar", value=f"{c['tasa']}" if c.get("tasa") else "", key=f"edit_c_tasa_{idx}")
+
+                    edit_estado_colega = st.selectbox("Cambiar Estatus", ["Disponible para Venta", "Vendido"], index=["Disponible para Venta", "Vendido"].index(c["estado"]) if c["estado"] in ["Disponible para Venta", "Vendido"] else 0, key=f"edit_c_est_{idx}")
+
+                    p_val_ed, err_ep = validar_y_parsear_monto(edit_precio_str)
+                    t_val_ed = 0.0
+                    err_et = None
+                    if edit_moneda == "Dólares (USD)" and edit_tasa_str.strip():
+                        t_val_ed, err_et = validar_y_parsear_monto(edit_tasa_str)
+
+                    if st.form_submit_button("Guardar Cambios de Colega"):
+                        if err_ep:
+                            st.error(f"Error en precio: {err_ep}")
+                        elif err_et:
+                            st.error(f"Error en tasa: {err_et}")
+                        else:
+                            if edit_moneda == "Dólares (USD)" and t_val_ed > 0:
+                                precio_fin_ed = p_val_ed * t_val_ed
+                            else:
+                                precio_fin_ed = p_val_ed
+
+                            c["moneda_original"] = edit_moneda
+                            c["precio_original"] = p_val_ed
+                            c["tasa"] = t_val_ed if (edit_moneda == "Dólares (USD)" and t_val_ed > 0) else None
+                            c["precio"] = precio_fin_ed
+                            c["estado"] = edit_estado_colega
+
+                            guardar_datos_db()
+                            st.success("¡Vehículo de colega actualizado con éxito!")
+                            st.rerun()
+
                 if c.get("fotos"):
+                    st.markdown("---")
+                    st.markdown("##### 📸 Fotografías")
                     cols_c_fotos = st.columns(3)
                     for f_idx, ruta_fc in enumerate(c["fotos"]):
                         with cols_c_fotos[f_idx % 3]:
                             st.image(ruta_fc, use_container_width=True)
                             st.markdown(f"[📥 Ver #{f_idx+1}]({ruta_fc})")
-                if st.button("Eliminar", key=f"col_del_{idx}"):
+
+                st.markdown("---")
+                if st.button("🗑️ Eliminar Vehículo de Colega", key=f"col_del_{idx}"):
                     st.session_state.colegas.pop(idx)
                     guardar_datos_db()
+                    st.success("¡Vehículo eliminado!")
                     st.rerun()
     else:
         st.info("No hay vehículos de colegas registrados.")
