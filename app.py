@@ -982,5 +982,12 @@ elif pestana == "📋 Traspasos Pendientes":
                             guardar_datos_db()
                             st.success("¡Traspaso actualizado con éxito!")
                             st.rerun()
+
+                st.markdown("---")
+                if st.button("🗑️ Eliminar Traspaso", key=f"del_t_{idx}"):
+                    st.session_state.traspasos.pop(idx)
+                    guardar_datos_db()
+                    st.success("¡Traspaso eliminado!")
+                    st.rerun()
     else:
         st.info("No hay traspasos registrados.")
