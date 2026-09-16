@@ -891,18 +891,24 @@ elif pestana == "🏢 Gastos Operativos del Dealer":
 elif pestana == "📋 Traspasos Pendientes":
     st.subheader("Gestión y Control de Traspasos")
 
-    t_vehiculo = st.text_input("Vehículo", placeholder="Ej: Toyota Corolla 2020", key="traspaso_vehiculo")
-    t_cliente = st.text_input("Cliente", placeholder="Ej: Juan Pérez", key="traspaso_cliente")
+    st.markdown("**Registrar Nuevo Traspaso**")
+    t_vehiculo = st.text_input("Marca, Modelo y Año del Vehículo", placeholder="Ej: Toyota Corolla 2020", key="traspaso_vehiculo")
+    t_cliente = st.text_input("Nombre del Cliente", placeholder="Ej: Juan Pérez", key="traspaso_cliente")
     t_valor_dgii_str = st.text_input("Valor en DGII (RD$)", placeholder="Ej: 500,000", key="traspaso_dgii")
-    t_plan_piloto = st.radio("¿Va a Plan Piloto?", ["Sí", "No"], horizontal=True, key="t_pp")
+
+    t_plan_piloto = st.radio("¿La persona irá a Plan Piloto?", ["Sí", "No"], horizontal=True, key="t_pp")
 
     val_dgii, err_dgii = validar_y_parsear_monto(t_valor_dgii_str)
 
     if st.button("Calcular y Registrar Traspaso", key="btn_guardar_traspaso"):
-        if not t_vehiculo or not t_cliente:
-            st.error("Completa los campos obligatorios.")
-        elif err_dgii:
+        if not t_vehiculo:
+            st.error("Por favor ingresa la marca, modelo y año del vehículo.")
+        elif not t_cliente:
+            st.error("Por favor ingresa el nombre del cliente.")
+        elif t_valor_dgii_str and err_dgii:
             st.error(err_dgii)
+        elif val_dgii <= 0:
+            st.error("Por favor ingresa un valor en DGII válido.")
         else:
             monto_2_pct = val_dgii * 0.02
             cheque_admin = 350.0 if monto_2_pct > 15000 else 0.0
@@ -911,35 +917,70 @@ elif pestana == "📋 Traspasos Pendientes":
             gestion = 3500.0
             plan_piloto_costo = 2500.0 if t_plan_piloto == "No" else 0.0
 
-            total_traspaso = monto_2_pct + cheque_admin + notarizacion + legalizacion + gestion + plan_piloto_costo
-
-            st.session_state.traspasos.append(
-                {
-                    "vehiculo": t_vehiculo,
-                    "cliente": t_cliente,
-                    "valor_dgii": val_dgii,
-                    "monto_2_pct": monto_2_pct,
-                    "cheque_admin": cheque_admin,
-                    "notarizacion": notarizacion,
-                    "legalizacion": legalizacion,
-                    "gestion": gestion,
-                    "plan_piloto": t_plan_piloto,
-                    "plan_piloto_costo": plan_piloto_costo,
-                    "total": total_traspaso,
-                    "estado": "Pendiente",
-                }
+            total_traspaso = (
+                monto_2_pct + cheque_admin + notarizacion + legalizacion + gestion + plan_piloto_costo
             )
+
+            nuevo_traspaso = {
+                "vehiculo": t_vehiculo,
+                "cliente": t_cliente,
+                "valor_dgii": val_dgii,
+                "monto_2_pct": monto_2_pct,
+                "cheque_admin": cheque_admin,
+                "notarizacion": notarizacion,
+                "legalizacion": legalizacion,
+                "gestion": gestion,
+                "plan_piloto": t_plan_piloto,
+                "plan_piloto_costo": plan_piloto_costo,
+                "total": total_traspaso,
+                "estado": "Pendiente",
+            }
+
+            st.session_state.traspasos.append(nuevo_traspaso)
             guardar_datos_db()
-            st.success("Traspaso registrado.")
+            st.success("¡Traspaso registrado exitosamente!")
             st.rerun()
 
     st.markdown("---")
+    st.markdown("### Listado de Traspasos Registrados")
+
     if st.session_state.traspasos:
         for idx, t in enumerate(st.session_state.traspasos):
-            with st.expander(f"🚗 {t['vehiculo']} | {t['cliente']} — **{t['estado']}** | Total: RD$ {t['total']:,.2f}"):
-                if st.button("Eliminar Traspaso", key=f"del_t_{idx}"):
-                    st.session_state.traspasos.pop(idx)
-                    guardar_datos_db()
-                    st.rerun()
+            with st.expander(f"🚗 {t['vehiculo']} | Cliente: {t['cliente']} — Estatus: **{t['estado']}** | Total: RD$ {t['total']:,.2f}"):
+                st.markdown(f"**Vehículo:** {t['vehiculo']}")
+                st.markdown(f"**Cliente:** {t['cliente']}")
+                st.markdown(f"**Valor en DGII:** RD$ {t['valor_dgii']:,.2f}")
+                st.markdown("---")
+                st.markdown("##### 📊 Desglose de Gastos del Traspaso:")
+                st.markdown(f"• **Impuesto 2% DGII:** RD$ {t['monto_2_pct']:,.2f}")
+                if t["cheque_admin"] > 0:
+                    st.markdown(f"• **Cheque Administrativo:** RD$ {t['cheque_admin']:,.2f}")
+                st.markdown(f"• **Notarización de Acto de Venta:** RD$ {t['notarizacion']:,.2f}")
+                st.markdown(f"• **Legalización en Procuraduría:** RD$ {t['legalizacion']:,.2f}")
+                st.markdown(f"• **Gastos de Gestión:** RD$ {t['gestion']:,.2f}")
+                st.markdown(f"• **Va a Plan Piloto:** {t['plan_piloto']}" + (f" (RD$ {t['plan_piloto_costo']:,.2f})" if t["plan_piloto_costo"] > 0 else ""))
+                st.markdown(f"### **Costo Total del Traspaso:** RD$ {t['total']:,.2f}")
+
+                st.markdown("---")
+                st.markdown("##### ⚙️ Modificar Gastos de Gestión o Estatus")
+
+                with st.form(f"form_edit_traspaso_{idx}"):
+                    edit_gestion_str = st.text_input("Modificar Gastos de Gestión (RD$)", value=f"{t['gestion']:,.0f}", key=f"edit_gestion_{idx}")
+                    nuevo_est_traspaso = st.selectbox("Cambiar Estatus", ["Pendiente", "Realizado"], index=["Pendiente", "Realizado"].index(t["estado"]), key=f"est_trasp_{idx}")
+
+                    nueva_gestion_val, err_eg = validar_y_parsear_monto(edit_gestion_str)
+
+                    if st.form_submit_button("Guardar Cambios de Traspaso"):
+                        if err_eg:
+                            st.error(f"Error en monto de gestión: {err_eg}")
+                        else:
+                            t["gestion"] = nueva_gestion_val
+                            t["estado"] = nuevo_est_traspaso
+                            t["total"] = (
+                                t["monto_2_pct"] + t["cheque_admin"] + t["notarizacion"] + t["legalizacion"] + t["gestion"] + t["plan_piloto_costo"]
+                            )
+                            guardar_datos_db()
+                            st.success("¡Traspaso actualizado con éxito!")
+                            st.rerun()
     else:
         st.info("No hay traspasos registrados.")
