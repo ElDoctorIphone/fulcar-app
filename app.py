@@ -1,6 +1,7 @@
 import calendar
 import datetime
 import io
+import json
 import os
 import pandas as pd
 import streamlit as st
@@ -38,10 +39,41 @@ def subir_imagen_a_cloudinary(f_item):
             f.write(f_item.getbuffer())
         return ruta_completa
 
-# --- CLAVE SECRETA DE ACCESO ---
-CLAVE_SECRETA = "Fulcar0131"  # Puedes cambiar esta clave cuando quieras
+# --- ARCHIVO DE PERSISTENCIA PERMANENTE (BASE DE DATOS LOCAL) ---
+DB_FILE = "fulcar_database.json"
 
-# Inicializar el estado de autenticación
+def cargar_datos_db():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {
+        "propio": [],
+        "colegas": [],
+        "cuentas": [],
+        "gastos_dealer": [],
+        "traspasos": []
+    }
+
+def guardar_datos_db():
+    datos = {
+        "propio": st.session_state.propio,
+        "colegas": st.session_state.colegas,
+        "cuentas": st.session_state.cuentas,
+        "gastos_dealer": st.session_state.gastos_dealer,
+        "traspasos": st.session_state.traspasos
+    }
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(datos, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"Error al guardar en la base de datos: {e}")
+
+# --- CLAVE SECRETA DE ACCESO ---
+CLAVE_SECRETA = "fulcar2026"
+
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 
@@ -61,9 +93,7 @@ if not st.session_state.autenticado:
         st.subheader("Acceso Restringido al Sistema")
         
         with st.form("form_login"):
-            password_ingresada = st.text_input(
-                "Ingresa la Clave de Seguridad", type="password"
-            )
+            password_ingresada = st.text_input("Ingresa la Clave de Seguridad", type="password")
             btn_login = st.form_submit_button("Entrar al Sistema")
 
             if btn_login:
@@ -79,30 +109,16 @@ if not st.session_state.autenticado:
 # ==========================================
 # CÓDIGO PRINCIPAL DEL SISTEMA
 # ==========================================
-
-# --- ESTILOS CSS PARA ADAPTABILIDAD MÓVIL Y TAMAÑO AMPLIADO ---
 st.markdown(
     """
     <style>
-    html, body, [class*="css"] {
-        font-size: 16px;
-    }
+    html, body, [class*="css"] { font-size: 16px; }
     @media (max-width: 768px) {
-        .stColumns {
-            flex-direction: column !important;
-        }
-        .stMetric {
-            margin-bottom: 15px;
-        }
-        h1 {
-            font-size: 1.8rem !important;
-        }
-        h2 {
-            font-size: 1.4rem !important;
-        }
-        h3 {
-            font-size: 1.2rem !important;
-        }
+        .stColumns { flex-direction: column !important; }
+        .stMetric { margin-bottom: 15px; }
+        h1 { font-size: 1.8rem !important; }
+        h2 { font-size: 1.4rem !important; }
+        h3 { font-size: 1.2rem !important; }
     }
     .fulcar-texto-linea {
         font-family: inherit; 
@@ -116,19 +132,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Inicialización de bases de datos en session_state
+# Cargar datos persistentes al iniciar la sesión
+datos_guardados = cargar_datos_db()
 if "propio" not in st.session_state:
-    st.session_state.propio = []
+    st.session_state.propio = datos_guardados["propio"]
 if "colegas" not in st.session_state:
-    st.session_state.colegas = []
+    st.session_state.colegas = datos_guardados["colegas"]
 if "cuentas" not in st.session_state:
-    st.session_state.cuentas = []
+    st.session_state.cuentas = datos_guardados["cuentas"]
 if "gastos_dealer" not in st.session_state:
-    st.session_state.gastos_dealer = []
+    st.session_state.gastos_dealer = datos_guardados["gastos_dealer"]
 if "traspasos" not in st.session_state:
-    st.session_state.traspasos = []
+    st.session_state.traspasos = datos_guardados["traspasos"]
 
-# Meses y días en español
 MESES_ES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
     5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
@@ -182,7 +198,6 @@ with col_titulo:
 
 with col_respaldo:
     st.markdown("<br>", unsafe_allow_html=True)
-    # --- BOTÓN DE RESPALDO EN EXCEL (COPIA EXTERNA) ---
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         pd.DataFrame(st.session_state.propio).to_excel(writer, sheet_name='Inventario_Propio', index=False)
@@ -196,7 +211,7 @@ with col_respaldo:
         data=output.getvalue(),
         file_name=f"Respaldo_Fulcar_{datetime.date.today()}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        help="Guarda una copia exacta de toda la información en tu dispositivo por seguridad."
+        help="Descarga una copia exacta de respaldo en tu dispositivo."
     )
 
 st.markdown("---")
@@ -328,7 +343,7 @@ elif pestana == "🚗 Mi Inventario Propio":
             md_str = st.text_input("Parte que puso El Doctor (RD$)", placeholder="Ej: 250,000", key="md_nuevo_str")
 
     fotos_subidas = st.file_uploader(
-        "Fotografías del Vehículo (Se guardan de forma permanente en la nube)",
+        "Fotografías del Vehículo (Opcional)",
         type=["png", "jpg", "jpeg"],
         accept_multiple_files=True,
         key="fotos_nuevo_vehiculo",
@@ -389,6 +404,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                     "mes_venta": None,
                 }
                 st.session_state.propio.append(nuevo_vehiculo)
+                guardar_datos_db()
                 st.success(f"Vehículo {nombre_inv} agregado exitosamente.")
                 st.rerun()
         else:
@@ -419,6 +435,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                 "mes_venta": None,
             }
             st.session_state.propio.append(nuevo_vehiculo)
+            guardar_datos_db()
             st.success(f"Vehículo {nombre_inv} agregado exitosamente.")
             st.rerun()
 
@@ -490,6 +507,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                             v["retorno_doctor"] = total_doctor_inv
                             v["ganancia_oscar"] = ganancia_calc / 2.0
                             v["ganancia_doctor"] = ganancia_calc / 2.0
+                            guardar_datos_db()
                             st.success("¡Venta registrada con éxito!")
                             st.rerun()
                     else:
@@ -501,6 +519,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                         v["ganancia_doctor"] = 0.0
                         v["fecha_venta"] = None
                         v["mes_venta"] = None
+                        guardar_datos_db()
                         st.success("¡Estado actualizado!")
                         st.rerun()
 
@@ -556,6 +575,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                                     v["retorno_doctor"] = total_doctor_inv
                                     v["ganancia_oscar"] = ganancia_calc / 2.0
                                     v["ganancia_doctor"] = ganancia_calc / 2.0
+                                guardar_datos_db()
                                 st.rerun()
 
                 st.markdown("---")
@@ -620,6 +640,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                                 v["ganancia_oscar"] = ganancia_calc / 2.0
                                 v["ganancia_doctor"] = ganancia_calc / 2.0
 
+                            guardar_datos_db()
                             st.success("¡Gasto agregado!")
                             st.rerun()
 
@@ -637,6 +658,7 @@ elif pestana == "🚗 Mi Inventario Propio":
                             with col_del_btn:
                                 if st.button("🗑️", key=f"del_img_prop_{i}_{f_idx}", help="Borrar foto"):
                                     v["fotos"].pop(f_idx)
+                                    guardar_datos_db()
                                     st.rerun()
                 else:
                     st.info("Sin fotografías registradas.")
@@ -653,12 +675,14 @@ elif pestana == "🚗 Mi Inventario Propio":
                             url_img = subir_imagen_a_cloudinary(f_item)
                             if url_img:
                                 v["fotos"].append(url_img)
+                        guardar_datos_db()
                         st.success("¡Fotos agregadas!")
                         st.rerun()
 
                 st.markdown("---")
                 if st.button("🗑️ Eliminar Vehículo Completo", key=f"del_{i}"):
                     st.session_state.propio.pop(i)
+                    guardar_datos_db()
                     st.rerun()
 
         st.markdown("---")
@@ -732,6 +756,7 @@ elif pestana == "🤝 Vehículos de Colegas":
                     "fotos": rutas_fotos_colega,
                 }
             )
+            guardar_datos_db()
             st.success("Registrado con éxito.")
             st.rerun()
 
@@ -755,6 +780,7 @@ elif pestana == "🤝 Vehículos de Colegas":
                             st.markdown(f"[📥 Ver #{f_idx+1}]({ruta_fc})")
                 if st.button("Eliminar", key=f"col_del_{idx}"):
                     st.session_state.colegas.pop(idx)
+                    guardar_datos_db()
                     st.rerun()
     else:
         st.info("No hay vehículos de colegas registrados.")
@@ -780,6 +806,7 @@ elif pestana == "💰 Cuentas por Cobrar":
             st.session_state.cuentas.append(
                 {"cliente": cta_cliente, "concepto": cta_concepto, "monto": m_val, "fecha": cta_fecha}
             )
+            guardar_datos_db()
             st.success("Registrado.")
             st.rerun()
 
@@ -792,6 +819,7 @@ elif pestana == "💰 Cuentas por Cobrar":
             with col_c2:
                 if st.button("Cobrado", key=f"ct_del_{idx}"):
                     st.session_state.cuentas.pop(idx)
+                    guardar_datos_db()
                     st.rerun()
     else:
         st.info("No hay cuentas pendientes.")
@@ -842,6 +870,7 @@ elif pestana == "🏢 Gastos Operativos del Dealer":
                     "mes": str(gd_fecha)[:7],
                 }
             )
+            guardar_datos_db()
             st.success("Gasto registrado.")
             st.rerun()
 
@@ -851,6 +880,7 @@ elif pestana == "🏢 Gastos Operativos del Dealer":
             with st.expander(f"📌 {gd['concepto']} — RD$ {gd['monto']:,.2f} ({gd['fecha']})"):
                 if st.button("Borrar Gasto", key=f"del_gd_{idx}"):
                     st.session_state.gastos_dealer.pop(idx)
+                    guardar_datos_db()
                     st.rerun()
     else:
         st.info("No hay gastos registrados.")
@@ -899,6 +929,7 @@ elif pestana == "📋 Traspasos Pendientes":
                     "estado": "Pendiente",
                 }
             )
+            guardar_datos_db()
             st.success("Traspaso registrado.")
             st.rerun()
 
@@ -908,6 +939,7 @@ elif pestana == "📋 Traspasos Pendientes":
             with st.expander(f"🚗 {t['vehiculo']} | {t['cliente']} — **{t['estado']}** | Total: RD$ {t['total']:,.2f}"):
                 if st.button("Eliminar Traspaso", key=f"del_t_{idx}"):
                     st.session_state.traspasos.pop(idx)
+                    guardar_datos_db()
                     st.rerun()
     else:
         st.info("No hay traspasos registrados.")
